@@ -1,0 +1,39 @@
+import mongoose from 'mongoose';
+
+const paymentSchema = new mongoose.Schema(
+  {
+    registration: { type: mongoose.Schema.Types.ObjectId, ref: 'Registration', required: true },
+    course: { type: mongoose.Schema.Types.ObjectId, ref: 'Course', required: true },
+
+    provider: {
+      type: String,
+      enum: ['paystack', 'squad'],
+      required: true
+    },
+
+    reference: { type: String, required: true, unique: true, trim: true },
+    providerReference: { type: String, default: '', trim: true },
+
+    amountUsd: { type: Number, required: true },
+    amountMinor: { type: Number, required: true },
+    currency: { type: String, default: 'USD', trim: true },
+
+    status: {
+      type: String,
+      enum: ['initialized', 'pending', 'paid', 'failed'],
+      default: 'initialized'
+    },
+
+    checkoutUrl: { type: String, default: '', trim: true },
+
+    rawProviderResponse: { type: mongoose.Schema.Types.Mixed },
+    rawWebhookEvent: { type: mongoose.Schema.Types.Mixed },
+
+    paidAt: { type: Date }
+  },
+  { timestamps: true }
+);
+
+paymentSchema.index({ registration: 1, provider: 1 });
+
+export const Payment = mongoose.model('Payment', paymentSchema);

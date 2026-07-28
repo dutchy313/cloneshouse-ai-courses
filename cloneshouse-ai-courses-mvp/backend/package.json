@@ -1,0 +1,42 @@
+{
+  "name": "cloneshouse-ai-courses-backend",
+  "version": "1.0.0",
+  "description": "Backend API for Cloneshouse AI courses registration, payments, Zoom admission, email, and Google Sheets sync.",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "nodemon src/server.js",
+    "start": "node src/server.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "email:test": "node src/scripts/sendTestEmail.js",
+    "zoom:test": "node src/scripts/testZoom.js"
+  },
+  "engines": {
+    "node": ">=20 <25"
+  },
+  "keywords": [
+    "cloneshouse",
+    "courses",
+    "express",
+    "mongodb",
+    "paystack",
+    "squad",
+    "zoom"
+  ],
+  "author": "Cloneshouse",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "axios": "^1.7.9",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^4.21.2",
+    "mongoose": "^8.9.5",
+    "nodemailer": "^9.0.3",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9",
+    "vitest": "^4.1.10"
+  }
+}
