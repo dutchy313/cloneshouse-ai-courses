@@ -11,6 +11,7 @@ export const app = express();
 
 const allowedOrigins = [
   env.frontendUrl,
+  ...env.frontendAllowedOrigins,
 
   // Vite development server
   'http://localhost:5173',
@@ -42,6 +43,16 @@ app.use(
     }
   })
 );
+
+app.get('/', (req, res) => {
+  res.json({
+    ok: true,
+    service: 'cloneshouse-ai-courses-api',
+    message: 'Cloneshouse AI Courses API is running.',
+    health: '/health',
+    courses: '/api/v1/courses'
+  });
+});
 
 app.get('/health', (req, res) => {
   res.json({

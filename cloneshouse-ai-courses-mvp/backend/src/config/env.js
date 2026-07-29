@@ -2,12 +2,22 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+function parseCsv(value = '') {
+  return value
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 export const env = {
+  nodeEnv: process.env.NODE_ENV || 'development',
   port: process.env.PORT || 4000,
 
   mongoUri: process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/cloneshouse_ai_courses',
 
   frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
+  frontendAllowedOrigins: parseCsv(process.env.FRONTEND_ALLOWED_ORIGINS || ''),
+
   apiBaseUrl: process.env.API_BASE_URL || 'http://localhost:4000',
 
   paymentsMockMode: process.env.PAYMENTS_MOCK_MODE === 'true',
