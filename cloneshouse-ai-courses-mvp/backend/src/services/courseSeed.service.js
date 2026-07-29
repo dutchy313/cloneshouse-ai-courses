@@ -10,8 +10,12 @@ const courses = [
     dateLabel: 'Thursday, August 27, 2026',
     timeLabel: '5pm–7pm WAT / 12pm–2pm New York / 9:30pm–11:30pm India',
     durationLabel: '2 hours',
+
     standardPriceUsd: 120,
     earlyBirdPriceUsd: 100,
+    standardPriceNgn: 163000,
+    earlyBirdPriceNgn: 140000,
+
     earlyBirdEndsAt: new Date('2026-08-06T23:59:59.000Z'),
     imageUrl:
       'https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&w=1200&q=80',
@@ -54,8 +58,12 @@ const courses = [
     dateLabel: 'Thursday, September 24, 2026',
     timeLabel: '4pm–7pm WAT / 11am–2pm New York / 8:30pm–11:30pm India',
     durationLabel: '3 hours',
+
     standardPriceUsd: 250,
     earlyBirdPriceUsd: 200,
+    standardPriceNgn: 340000,
+    earlyBirdPriceNgn: 280000,
+
     earlyBirdEndsAt: new Date('2026-09-03T23:59:59.000Z'),
     imageUrl:
       'https://images.unsplash.com/photo-1526253038957-bce54e05968e?auto=format&fit=crop&w=1200&q=80',

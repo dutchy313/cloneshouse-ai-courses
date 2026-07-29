@@ -71,7 +71,14 @@ vi.mock('../services/admission.service.js', () => ({
 
 const { markPaymentAsPaid } = await import('../controllers/payment.controller.js');
 
-function buildPayment({ status = 'pending' } = {}) {
+function buildPayment({
+  status = 'pending',
+  provider = 'squad',
+  reference = 'CHAI-SQUAD-123',
+  amountUsd = 200,
+  amountMinor = 20000,
+  currency = 'USD'
+} = {}) {
   const registration = {
     _id: {
       toString: () => 'registration-123'
@@ -98,12 +105,12 @@ function buildPayment({ status = 'pending' } = {}) {
     _id: {
       toString: () => 'payment-123'
     },
-    reference: 'CHAI-SQUAD-123',
-    provider: 'squad',
+    reference,
+    provider,
     status,
-    amountUsd: 200,
-    amountMinor: 20000,
-    currency: 'USD',
+    amountUsd,
+    amountMinor,
+    currency,
     paidAt: new Date('2026-07-27T12:00:00.000Z'),
     registration,
     course
@@ -121,7 +128,7 @@ beforeEach(() => {
 });
 
 describe('markPaymentAsPaid idempotency', () => {
-  it('runs payment side effects once when a pending payment becomes paid', async () => {
+  it('runs payment side effects once when a pending USD payment becomes paid', async () => {
     const { payment, registration } = buildPayment();
 
     mocks.paymentFindOneAndUpdate.mockReturnValue(makePopulateQuery(payment));
@@ -135,6 +142,43 @@ describe('markPaymentAsPaid idempotency', () => {
     });
 
     expect(result.reference).toBe('CHAI-SQUAD-123');
+    expect(result.currency).toBe('USD');
+    expect(result.amountUsd).toBe(200);
+    expect(result.amountMinor).toBe(20000);
+
+    expect(mocks.paymentFindOneAndUpdate).toHaveBeenCalledTimes(1);
+    expect(registration.save).toHaveBeenCalledTimes(1);
+
+    expect(mocks.syncPaymentToGoogleSheets).toHaveBeenCalledTimes(1);
+    expect(mocks.sendPaymentConfirmation).toHaveBeenCalledTimes(1);
+    expect(mocks.sendAdminAlert).toHaveBeenCalledTimes(1);
+    expect(mocks.completeAdmissionAfterPayment).toHaveBeenCalledTimes(1);
+  });
+
+  it('runs payment side effects once when a pending NGN Paystack payment becomes paid', async () => {
+    const { payment, registration } = buildPayment({
+      provider: 'paystack',
+      reference: 'CHAI-PAYSTACK-NGN-123',
+      amountUsd: 0,
+      amountMinor: 14000000,
+      currency: 'NGN'
+    });
+
+    mocks.paymentFindOneAndUpdate.mockReturnValue(makePopulateQuery(payment));
+
+    const result = await markPaymentAsPaid({
+      reference: 'CHAI-PAYSTACK-NGN-123',
+      provider: 'paystack',
+      rawEvent: {
+        event: 'charge.success'
+      }
+    });
+
+    expect(result.reference).toBe('CHAI-PAYSTACK-NGN-123');
+    expect(result.provider).toBe('paystack');
+    expect(result.currency).toBe('NGN');
+    expect(result.amountUsd).toBe(0);
+    expect(result.amountMinor).toBe(14000000);
 
     expect(mocks.paymentFindOneAndUpdate).toHaveBeenCalledTimes(1);
     expect(registration.save).toHaveBeenCalledTimes(1);

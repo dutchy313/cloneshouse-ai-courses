@@ -14,9 +14,21 @@ const paymentSchema = new mongoose.Schema(
     reference: { type: String, required: true, unique: true, trim: true },
     providerReference: { type: String, default: '', trim: true },
 
-    amountUsd: { type: Number, required: true },
+    // For USD payments, this stores the US dollar amount.
+    // For NGN payments, this stays 0 because the real amount is stored through currency + amountMinor.
+    amountUsd: { type: Number, required: true, default: 0 },
+
+    // Smallest currency unit:
+    // USD: cents, for example US$100 = 10000
+    // NGN: kobo, for example ₦140,000 = 14000000
     amountMinor: { type: Number, required: true },
-    currency: { type: String, default: 'USD', trim: true },
+
+    currency: {
+      type: String,
+      enum: ['USD', 'NGN'],
+      default: 'USD',
+      trim: true
+    },
 
     status: {
       type: String,

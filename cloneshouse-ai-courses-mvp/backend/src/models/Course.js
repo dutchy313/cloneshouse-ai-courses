@@ -22,6 +22,10 @@ const courseSchema = new mongoose.Schema(
 
     standardPriceUsd: { type: Number, required: true },
     earlyBirdPriceUsd: { type: Number, required: true },
+
+    standardPriceNgn: { type: Number, required: true },
+    earlyBirdPriceNgn: { type: Number, required: true },
+
     earlyBirdEndsAt: { type: Date, required: true },
 
     imageUrl: { type: String, default: '', trim: true },

@@ -6,10 +6,23 @@ import { initializeSquadTransaction } from '../services/squad.service.js';
 import { syncPaymentToGoogleSheets } from '../services/googleSheets.service.js';
 import { sendAdminAlert, sendPaymentConfirmation } from '../services/email.service.js';
 import { completeAdmissionAfterPayment } from '../services/admission.service.js';
+import { getCoursePriceByCurrency } from '../services/pricing.service.js';
 
-function getActivePrice(course) {
-  const earlyBirdEndsAt = new Date(course.earlyBirdEndsAt).getTime();
-  return Date.now() <= earlyBirdEndsAt ? course.earlyBirdPriceUsd : course.standardPriceUsd;
+const SUPPORTED_PROVIDERS = ['paystack', 'squad'];
+const SUPPORTED_CURRENCIES = ['USD', 'NGN'];
+
+function normalizeCurrency(value) {
+  return String(value || 'USD')
+    .trim()
+    .toUpperCase();
+}
+
+function getAmountMinor(amountMajor) {
+  return Math.round(Number(amountMajor || 0) * 100);
+}
+
+function getAmountUsdForStorage(amountMajor, currency) {
+  return currency === 'USD' ? Number(amountMajor || 0) : 0;
 }
 
 function buildPaymentStatusResponse(payment) {
@@ -34,14 +47,31 @@ function buildPaymentStatusResponse(payment) {
 
 export async function initializePayment(req, res, next) {
   try {
-    const { registrationId, provider = 'paystack' } = req.body;
+    const {
+      registrationId,
+      provider = 'paystack',
+      currency: requestedCurrency = 'USD'
+    } = req.body;
+
+    const currency = normalizeCurrency(requestedCurrency);
 
     if (!registrationId) {
       return res.status(400).json({ message: 'Registration ID is required' });
     }
 
-    if (!['paystack', 'squad'].includes(provider)) {
+    if (!SUPPORTED_PROVIDERS.includes(provider)) {
       return res.status(400).json({ message: 'Unsupported payment provider' });
+    }
+
+    if (!SUPPORTED_CURRENCIES.includes(currency)) {
+      return res.status(400).json({ message: 'Unsupported payment currency' });
+    }
+
+    if (provider === 'squad' && currency !== 'USD') {
+      return res.status(400).json({
+        message:
+          'Squad is currently available for US$ payments only. Please choose Paystack for Nigerian Naira payment.'
+      });
     }
 
     const registration = await Registration.findById(registrationId);
@@ -56,12 +86,31 @@ export async function initializePayment(req, res, next) {
       return res.status(404).json({ message: 'Course not found' });
     }
 
-    const amountUsd = getActivePrice(course);
+    const amountMajor = getCoursePriceByCurrency(course, currency);
+    const amountMinor = getAmountMinor(amountMajor);
+    const amountUsd = getAmountUsdForStorage(amountMajor, currency);
+
+    if (!amountMajor || amountMajor <= 0) {
+      return res.status(400).json({
+        message: `No valid ${currency} price is configured for this course`
+      });
+    }
 
     const providerResult =
       provider === 'squad'
-        ? await initializeSquadTransaction({ registration, course, amountUsd })
-        : await initializePaystackTransaction({ registration, course, amountUsd });
+        ? await initializeSquadTransaction({
+            registration,
+            course,
+            amountUsd: amountMajor
+          })
+        : await initializePaystackTransaction({
+            registration,
+            course,
+            amountMajor,
+            amountUsd,
+            amountMinor,
+            currency
+          });
 
     const payment = await Payment.create({
       registration: registration._id,
@@ -69,9 +118,9 @@ export async function initializePayment(req, res, next) {
       provider,
       reference: providerResult.reference,
       providerReference: providerResult.providerReference || '',
-      amountUsd: providerResult.amountUsd,
-      amountMinor: providerResult.amountMinor,
-      currency: providerResult.currency || 'USD',
+      amountUsd,
+      amountMinor,
+      currency,
       status: 'pending',
       checkoutUrl: providerResult.checkoutUrl,
       rawProviderResponse: providerResult.rawProviderResponse || {}
@@ -87,6 +136,7 @@ export async function initializePayment(req, res, next) {
       provider: payment.provider,
       status: payment.status,
       amountUsd: payment.amountUsd,
+      amountMinor: payment.amountMinor,
       currency: payment.currency,
       checkoutUrl: payment.checkoutUrl
     });
@@ -175,6 +225,7 @@ export async function markPaymentAsPaid({ reference, provider, rawEvent = {} }) 
         paymentProvider: payment.provider,
         paymentReference: payment.reference,
         amountUsd: payment.amountUsd,
+        amountMinor: payment.amountMinor,
         currency: payment.currency,
         paymentStatus: registration.paymentStatus,
         paidAt: payment.paidAt?.toISOString()
@@ -205,7 +256,7 @@ export async function confirmMockPayment(req, res, next) {
       return res.status(400).json({ message: 'Payment reference is required' });
     }
 
-    if (!['paystack', 'squad'].includes(provider)) {
+    if (!SUPPORTED_PROVIDERS.includes(provider)) {
       return res.status(400).json({ message: 'Unsupported payment provider' });
     }
 
@@ -222,7 +273,10 @@ export async function confirmMockPayment(req, res, next) {
       confirmed: true,
       reference: payment.reference,
       provider: payment.provider,
-      status: payment.status
+      status: payment.status,
+      amountUsd: payment.amountUsd,
+      amountMinor: payment.amountMinor,
+      currency: payment.currency
     });
   } catch (error) {
     next(error);

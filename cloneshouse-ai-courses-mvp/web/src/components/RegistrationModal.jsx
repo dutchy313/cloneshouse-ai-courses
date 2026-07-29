@@ -17,19 +17,33 @@ const initialForm = {
 
 const paymentOptions = [
   {
-    value: 'paystack',
-    title: 'Pay securely with Paystack',
-    description: 'Pay online with card through Paystack secure checkout.',
-    tag: 'Card payment'
+    value: 'paystack-ngn',
+    provider: 'paystack',
+    currency: 'NGN',
+    title: 'Pay in ₦ — Nigerian card, bank transfer or local payment',
+    description: 'Best for participants paying with Nigerian cards, bank transfer, or local Paystack channels.',
+    tag: 'Nigeria local payment'
   },
   {
-    value: 'squad',
-    title: 'Pay securely with Squad',
-    description: 'Use Squad secure checkout as an alternative online payment option.',
+    value: 'paystack-usd',
+    provider: 'paystack',
+    currency: 'USD',
+    title: 'Pay in US$ — International card',
+    description: 'Best for participants outside Nigeria using international cards through Paystack.',
+    tag: 'International card'
+  },
+  {
+    value: 'squad-usd',
+    provider: 'squad',
+    currency: 'USD',
+    title: 'Pay in US$ — Squad',
+    description: 'Use Squad secure checkout as an alternative US$ payment option.',
     tag: 'Alternative checkout'
   },
   {
     value: 'invoice',
+    provider: null,
+    currency: null,
     title: 'Request invoice / bank transfer support',
     description: 'Submit your registration and the Cloneshouse team will contact you with payment instructions.',
     tag: 'Team support'
@@ -38,23 +52,58 @@ const paymentOptions = [
 
 const phonePattern = '^\\+[1-9][0-9]{7,14}$';
 
-function formatCurrency(amount) {
-  return `US$${Number(amount).toLocaleString('en-US', {
+function formatUsd(amount) {
+  return `US$${Number(amount || 0).toLocaleString('en-US', {
     maximumFractionDigits: 0
   })}`;
 }
 
-function getActivePrice(course) {
-  const earlyBirdEndsAt = new Date(course.earlyBirdEndsAt).getTime();
-  return Date.now() <= earlyBirdEndsAt ? course.earlyBirdPriceUsd : course.standardPriceUsd;
+function formatNgn(amount) {
+  return `₦${Number(amount || 0).toLocaleString('en-US', {
+    maximumFractionDigits: 0
+  })}`;
 }
 
-function getProviderFromPaymentOption(paymentOption) {
-  if (paymentOption === 'squad') {
-    return 'squad';
+function isEarlyBirdActive(course) {
+  const earlyBirdEndsAt = new Date(course.earlyBirdEndsAt).getTime();
+
+  if (Number.isNaN(earlyBirdEndsAt)) {
+    return false;
   }
 
-  return 'paystack';
+  return Date.now() <= earlyBirdEndsAt;
+}
+
+function getPriceForCurrency(course, currency) {
+  const earlyBird = isEarlyBirdActive(course);
+
+  if (currency === 'NGN') {
+    return earlyBird ? course.earlyBirdPriceNgn : course.standardPriceNgn;
+  }
+
+  if (currency === 'USD') {
+    return earlyBird ? course.earlyBirdPriceUsd : course.standardPriceUsd;
+  }
+
+  return null;
+}
+
+function formatPriceForOption(course, option) {
+  const amount = getPriceForCurrency(course, option.currency);
+
+  if (option.currency === 'NGN') {
+    return formatNgn(amount);
+  }
+
+  if (option.currency === 'USD') {
+    return formatUsd(amount);
+  }
+
+  return '';
+}
+
+function getPaymentOptionByValue(value) {
+  return paymentOptions.find((option) => option.value === value) || paymentOptions[0];
 }
 
 function normalizePhone(value) {
@@ -100,12 +149,15 @@ function validateForm(form) {
 
 export function RegistrationModal({ course, onClose }) {
   const [form, setForm] = useState(initialForm);
-  const [paymentOption, setPaymentOption] = useState('paystack');
+  const [paymentOption, setPaymentOption] = useState('paystack-ngn');
   const [status, setStatus] = useState('idle');
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
 
   if (!course) return null;
+
+  const selectedPaymentOption = getPaymentOptionByValue(paymentOption);
+  const selectedPaymentPrice = formatPriceForOption(course, selectedPaymentOption);
 
   function updateField(event) {
     const { name, value, type, checked } = event.target;
@@ -150,10 +202,10 @@ export function RegistrationModal({ course, onClose }) {
         ...normalizedForm,
         marketingConsent: normalizedForm.communicationConsent,
         courseSlug: course.slug,
-        paymentPreference: paymentOption === 'invoice' ? 'invoice' : 'card'
+        paymentPreference: selectedPaymentOption.value === 'invoice' ? 'invoice' : 'card'
       });
 
-      if (paymentOption === 'invoice') {
+      if (selectedPaymentOption.value === 'invoice') {
         setStatus('success');
 
         window.setTimeout(() => {
@@ -165,7 +217,8 @@ export function RegistrationModal({ course, onClose }) {
 
       const paymentResponse = await api.post('/api/v1/payments/init', {
         registrationId: registrationResponse.data.registrationId,
-        provider: getProviderFromPaymentOption(paymentOption)
+        provider: selectedPaymentOption.provider,
+        currency: selectedPaymentOption.currency
       });
 
       window.location.href = paymentResponse.data.checkoutUrl;
@@ -314,6 +367,7 @@ export function RegistrationModal({ course, onClose }) {
             <div className="payment-choice-list">
               {paymentOptions.map((option) => {
                 const isSelected = paymentOption === option.value;
+                const optionPrice = formatPriceForOption(course, option);
 
                 return (
                   <label
@@ -332,6 +386,7 @@ export function RegistrationModal({ course, onClose }) {
                       <span className="payment-choice-tag">{option.tag}</span>
                       <span className="payment-choice-title">{option.title}</span>
                       <span className="payment-choice-description">{option.description}</span>
+                      {optionPrice && <span className="payment-choice-price">{optionPrice}</span>}
                     </span>
 
                     <span className="payment-choice-arrow" aria-hidden="true">
@@ -368,9 +423,9 @@ export function RegistrationModal({ course, onClose }) {
           <button className="button button-primary" type="submit" disabled={status === 'loading' || status === 'success'}>
             {status === 'loading'
               ? 'Processing…'
-              : paymentOption === 'invoice'
+              : selectedPaymentOption.value === 'invoice'
                 ? 'Submit registration request'
-                : `Continue to secure payment · ${formatCurrency(getActivePrice(course))}`}
+                : `Continue to secure payment · ${selectedPaymentPrice}`}
           </button>
         </form>
       </div>
