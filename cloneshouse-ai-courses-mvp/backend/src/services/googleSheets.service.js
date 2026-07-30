@@ -14,10 +14,39 @@ function toIsoString(value) {
   }
 }
 
+function getAmountMajor(payment) {
+  if (!payment?.amountMinor) return '';
+
+  return Number(payment.amountMinor) / 100;
+}
+
+function formatPaymentAmount(payment) {
+  if (!payment) return '';
+
+  const amountMajor = getAmountMajor(payment);
+
+  if (amountMajor === '') return '';
+
+  if (payment.currency === 'NGN') {
+    return `₦${amountMajor.toLocaleString('en-US', {
+      maximumFractionDigits: 0
+    })}`;
+  }
+
+  if (payment.currency === 'USD') {
+    return `US$${amountMajor.toLocaleString('en-US', {
+      maximumFractionDigits: 0
+    })}`;
+  }
+
+  return `${payment.currency || ''} ${amountMajor.toLocaleString('en-US', {
+    maximumFractionDigits: 0
+  })}`.trim();
+}
+
 function buildBasePayload({ registration, course, eventType }) {
   return {
     eventType,
-
     registrationId: registration._id?.toString() || '',
     course: course.title || '',
     courseSlug: course.slug || '',
@@ -51,20 +80,13 @@ function buildBasePayload({ registration, course, eventType }) {
 async function sendToGoogleSheets(payload) {
   if (!hasGoogleSheetsWebhook()) {
     console.log('GOOGLE SHEETS MOCK:', payload);
-    return {
-      synced: false,
-      mocked: true
-    };
+    return { synced: false, mocked: true };
   }
 
   const response = await fetch(env.googleSheetsWebhookUrl, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      data: payload
-    })
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ data: payload })
   });
 
   const text = await response.text();
@@ -82,10 +104,28 @@ async function sendToGoogleSheets(payload) {
     throw new Error(result.error || 'Google Sheets sync failed');
   }
 
+  return { synced: true, mocked: false, result };
+}
+
+function buildPaymentPayload({ registration, course, payment, eventType }) {
+  const amountMajor = getAmountMajor(payment);
+
   return {
-    synced: true,
-    mocked: false,
-    result
+    ...buildBasePayload({ registration, course, eventType }),
+
+    // Keep this for USD-only reporting.
+    // For NGN payments, this remains blank instead of putting Naira into a USD column.
+    amountUsd: payment?.currency === 'USD' ? payment.amountUsd || amountMajor : '',
+
+    // New readable and reporting-friendly fields.
+    amountPaid: formatPaymentAmount(payment),
+    amountMajor,
+    amountMinor: payment?.amountMinor || '',
+
+    currency: payment?.currency || '',
+    paymentProvider: payment?.provider || '',
+    paymentReference: payment?.reference || '',
+    paidAt: toIsoString(payment?.paidAt)
   };
 }
 
@@ -100,36 +140,24 @@ export async function syncRegistrationToGoogleSheets({ registration, course }) {
 }
 
 export async function syncPaymentToGoogleSheets({ registration, course, payment }) {
-  const payload = {
-    ...buildBasePayload({
-      registration,
-      course,
-      eventType: 'payment_updated'
-    }),
-
-    amountUsd: payment.amountUsd || '',
-    currency: payment.currency || '',
-    paymentProvider: payment.provider || '',
-    paymentReference: payment.reference || '',
-    paidAt: toIsoString(payment.paidAt)
-  };
+  const payload = buildPaymentPayload({
+    registration,
+    course,
+    payment,
+    eventType: 'payment_updated'
+  });
 
   return sendToGoogleSheets(payload);
 }
 
 export async function syncAdmissionToGoogleSheets({ registration, course, payment }) {
   const payload = {
-    ...buildBasePayload({
+    ...buildPaymentPayload({
       registration,
       course,
+      payment,
       eventType: 'admission_updated'
     }),
-
-    amountUsd: payment?.amountUsd || '',
-    currency: payment?.currency || '',
-    paymentProvider: payment?.provider || '',
-    paymentReference: payment?.reference || '',
-    paidAt: toIsoString(payment?.paidAt),
     admissionUpdatedAt: new Date().toISOString()
   };
 
