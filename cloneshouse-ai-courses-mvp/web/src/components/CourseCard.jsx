@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 
-function formatCurrency(amount) {
-  return `US$${Number(amount).toLocaleString('en-US', {
+function formatUsd(amount) {
+  return `US$${Number(amount || 0).toLocaleString('en-US', {
+    maximumFractionDigits: 0
+  })}`;
+}
+
+function formatNgn(amount) {
+  return `₦${Number(amount || 0).toLocaleString('en-US', {
     maximumFractionDigits: 0
   })}`;
 }
@@ -48,8 +54,12 @@ export function CourseCard({ course, onRegister }) {
     return () => window.clearInterval(timer);
   }, [course.earlyBirdEndsAt]);
 
-  const activePrice = useMemo(() => {
+  const activeUsdPrice = useMemo(() => {
     return timeLeft.isOpen ? course.earlyBirdPriceUsd : course.standardPriceUsd;
+  }, [course, timeLeft.isOpen]);
+
+  const activeNgnPrice = useMemo(() => {
+    return timeLeft.isOpen ? course.earlyBirdPriceNgn : course.standardPriceNgn;
   }, [course, timeLeft.isOpen]);
 
   return (
@@ -115,17 +125,19 @@ export function CourseCard({ course, onRegister }) {
       <div className="price-row">
         <div>
           <span className="price-label">Standard</span>
-          <strong>{formatCurrency(course.standardPriceUsd)}</strong>
+          <strong>{formatUsd(course.standardPriceUsd)}</strong>
+          <small>{formatNgn(course.standardPriceNgn)}</small>
         </div>
 
         <div className="early-price">
           <span className="price-label">Early bird</span>
-          <strong>{formatCurrency(course.earlyBirdPriceUsd)}</strong>
+          <strong>{formatUsd(course.earlyBirdPriceUsd)}</strong>
+          <small>{formatNgn(course.earlyBirdPriceNgn)}</small>
         </div>
       </div>
 
       <button className="button button-primary" onClick={() => onRegister(course)}>
-        Register · {formatCurrency(activePrice)}
+        Register · {formatUsd(activeUsdPrice)} / {formatNgn(activeNgnPrice)}
       </button>
     </article>
   );
