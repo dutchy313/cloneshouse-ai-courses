@@ -12,6 +12,7 @@ One-page landing page + simple automation backend for the Cloneshouse AI for Eva
 - Phone and WhatsApp fields
 - Early bird countdowns
 - Course curriculum accordions
+- NGN Payment with Paystack
 - Paystack/Squad payment-init structure
 - Paystack webhook route
 - Zoom/email service placeholders
